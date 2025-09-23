@@ -1,0 +1,9 @@
+# Запрещаем выполнение PHP в папке uploads
+<Files *.php>
+    Deny from all
+</Files>
+
+# Разрешаем только изображения
+<FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
+    Allow from all
+</FilesMatch>
