@@ -16,9 +16,15 @@ if ($_POST) {
     $title = $_POST['title'] ?? '';
     $content = $_POST['content'] ?? '';
     $short_description = $_POST['short_description'] ?? '';
+    $preview_image = $_POST['preview_image'] ?? '';
     
     if ($title && $content) {
-        if (updateArticle($article['id'], $title, $content, $short_description)) {
+        // Если превью очистили, пытаемся взять первое изображение из контента
+        if (empty($preview_image)) {
+            $preview_image = extractFirstImage($content);
+        }
+        
+        if (updateArticle($article['id'], $title, $content, $short_description, $preview_image)) {
             header('Location: index.php?message=updated');
             exit;
         }
@@ -50,6 +56,7 @@ include __DIR__ . '/../includes/header.php';
                    value="<?php echo htmlspecialchars($article['preview_image'] ?? ''); ?>"
                    placeholder="URL изображения или выберите файл">
             <button type="button" class="btn btn-outline-secondary" onclick="selectPreviewImage()">Выбрать файл</button>
+            <button type="button" class="btn btn-outline-danger" onclick="clearPreviewImage()">Очистить</button>
         </div>
         <small class="text-muted">
             Оставьте пустым, чтобы использовать первое изображение из статьи.
@@ -67,13 +74,13 @@ include __DIR__ . '/../includes/header.php';
         
         <!-- Кнопка переключения режима -->
         <div class="mb-2">
-            <button type="button" id="html-toggle-btn" class="html-toggle-btn">📄 HTML редактор</button>
+            <button type="button" id="html-toggle-btn" class="btn btn-outline-secondary html-toggle-btn">📄 HTML редактор</button>
         </div>
         
         <!-- Контейнер для редакторов -->
         <div id="editor-container">
             <div id="editor" style="height: 400px;"><?php echo $article['content']; ?></div>
-            <textarea id="html-editor" class="html-editor" style="display: none;"><?php echo htmlspecialchars($article['content']); ?></textarea>
+            <textarea id="html-editor" class="form-control html-editor" style="display: none; height: 400px;"><?php echo htmlspecialchars($article['content']); ?></textarea>
         </div>
         <input type="hidden" name="content" id="content-input" value="<?php echo htmlspecialchars($article['content']); ?>">
     </div>
@@ -114,6 +121,7 @@ function initQuill() {
     quill.on('text-change', function() {
         if (!isHtmlMode) {
             updateHiddenField();
+            autoExtractFirstImage();
         }
     });
 }
@@ -176,7 +184,8 @@ function setupHtmlToggle() {
             quill.root.innerHTML = htmlEditor.value;
             
             toggleBtn.innerHTML = '📄 HTML редактор';
-            toggleBtn.classList.remove('active');
+            toggleBtn.classList.remove('btn-primary');
+            toggleBtn.classList.add('btn-outline-secondary');
             isHtmlMode = false;
         } else {
             // Переключаемся в HTML режим
@@ -187,7 +196,8 @@ function setupHtmlToggle() {
             htmlEditor.value = quill.root.innerHTML;
             
             toggleBtn.innerHTML = '📝 Визуальный редактор';
-            toggleBtn.classList.add('active');
+            toggleBtn.classList.remove('btn-outline-secondary');
+            toggleBtn.classList.add('btn-primary');
             isHtmlMode = true;
         }
         
@@ -212,6 +222,14 @@ function setupFormHandler() {
         
         // Дополнительная валидация если нужно
         const content = document.getElementById('content-input').value;
+        const title = document.getElementById('title').value;
+        
+        if (!title.trim()) {
+            e.preventDefault();
+            alert('Заголовок статьи не может быть пустым!');
+            return false;
+        }
+        
         if (!content.trim()) {
             e.preventDefault();
             alert('Содержание статьи не может быть пустым!');
@@ -222,6 +240,83 @@ function setupFormHandler() {
     });
 }
 
+// Функция для выбора превью-изображения
+function selectPreviewImage() {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+    
+    input.onchange = function() {
+        const file = input.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        fetch('upload.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                document.getElementById('preview_image').value = result.url;
+                updatePreviewImage(result.url);
+            } else {
+                alert('Ошибка загрузки: ' + result.error);
+            }
+        })
+        .catch(error => {
+            alert('Ошибка сети: ' + error.message);
+        });
+    };
+}
+
+// Функция очистки превью-изображения
+function clearPreviewImage() {
+    document.getElementById('preview_image').value = '';
+    updatePreviewImage('');
+}
+
+// Функция обновления превью изображения
+function updatePreviewImage(url) {
+    const container = document.getElementById('preview-image-container');
+    const img = document.getElementById('preview-image');
+    
+    if (url) {
+        img.src = url;
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+// Автоматическое извлечение первого изображения из контента
+function autoExtractFirstImage() {
+    const previewImageInput = document.getElementById('preview_image');
+    
+    // Если превью уже установлено вручную, не перезаписываем
+    if (previewImageInput.value.trim() !== '') {
+        return;
+    }
+    
+    const content = quill.root.innerHTML;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, 'text/html');
+    const firstImg = doc.querySelector('img');
+    
+    if (firstImg && firstImg.src) {
+        previewImageInput.value = firstImg.src;
+        updatePreviewImage(firstImg.src);
+    }
+}
+
+// Автоматическое обновление превью при изменении URL
+document.getElementById('preview_image').addEventListener('input', function() {
+    updatePreviewImage(this.value);
+});
+
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     initQuill();
@@ -230,7 +325,10 @@ document.addEventListener('DOMContentLoaded', function() {
     setupFormHandler();
     
     // Обработчик изменений в HTML редакторе
-    document.getElementById('html-editor').addEventListener('input', updateHiddenField);
+    document.getElementById('html-editor').addEventListener('input', function() {
+        updateHiddenField();
+        autoExtractFirstImage();
+    });
 });
 </script>
 

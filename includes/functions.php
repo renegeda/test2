@@ -45,8 +45,13 @@ function updateArticle($id, $title, $content, $short_description = '', $preview_
     $db = new Database();
     $pdo = $db->getConnection();
     
-    $stmt = $pdo->prepare("UPDATE articles SET title = ?, content = ?, short_description = ?, preview_image = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-    return $stmt->execute([$title, $content, $short_description, $preview_image, $id]);
+    try {
+        $stmt = $pdo->prepare("UPDATE articles SET title = ?, content = ?, short_description = ?, preview_image = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        return $stmt->execute([$title, $content, $short_description, $preview_image, $id]);
+    } catch (Exception $e) {
+        error_log("ОШИБКА БД в updateArticle: " . $e->getMessage());
+        return false;
+    }
 }
 
 function deleteArticle($id) {
