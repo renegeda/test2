@@ -24,21 +24,15 @@ function getArticleContent($article) {
     return $content;
 }
 
-function addArticle($title, $content, $short_description = '') {
+function addArticle($title, $content, $short_description = '', $preview_image = '') {
     error_log("=== addArticle CALLED ===");
-    error_log("Title: " . $title);
-    error_log("Content length: " . strlen($content));
     
     $db = new Database();
     $pdo = $db->getConnection();
     
     try {
-        $stmt = $pdo->prepare("INSERT INTO articles (title, content, short_description) VALUES (?, ?, ?)");
-        $result = $stmt->execute([$title, $content, $short_description]);
-        
-        error_log("SQL execute result: " . ($result ? 'true' : 'false'));
-        error_log("Last insert ID: " . $pdo->lastInsertId());
-        error_log("Row count: " . $stmt->rowCount());
+        $stmt = $pdo->prepare("INSERT INTO articles (title, content, short_description, preview_image) VALUES (?, ?, ?, ?)");
+        $result = $stmt->execute([$title, $content, $short_description, $preview_image]);
         
         return $result;
     } catch (Exception $e) {
@@ -47,12 +41,12 @@ function addArticle($title, $content, $short_description = '') {
     }
 }
 
-function updateArticle($id, $title, $content, $short_description = '') {
+function updateArticle($id, $title, $content, $short_description = '', $preview_image = '') {
     $db = new Database();
     $pdo = $db->getConnection();
     
-    $stmt = $pdo->prepare("UPDATE articles SET title = ?, content = ?, short_description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-    return $stmt->execute([$title, $content, $short_description, $id]);
+    $stmt = $pdo->prepare("UPDATE articles SET title = ?, content = ?, short_description = ?, preview_image = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+    return $stmt->execute([$title, $content, $short_description, $preview_image, $id]);
 }
 
 function deleteArticle($id) {
@@ -63,7 +57,6 @@ function deleteArticle($id) {
     return $stmt->execute([$id]);
 }
 
-// Функция обработки аккордеонов в контенте
 // Функция обработки аккордеонов в контенте (оптимизированная для Quill)
 function processAccordions($content) {
     // Убираем параграфы вокруг шорткодов аккордеона
@@ -151,6 +144,12 @@ function processContentImages($content) {
     );
     
     return $content;
+}
+
+// Функция для извлечения первого изображения из контента
+function extractFirstImage($content) {
+    preg_match('/<img[^>]+src="([^">]+)"/', $content, $matches);
+    return $matches[1] ?? '';
 }
 
 // Функция для обрезки текста

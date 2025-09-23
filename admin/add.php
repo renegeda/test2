@@ -1,43 +1,20 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 
-// ОТЛАДКА: логируем данные формы
 if ($_POST) {
-    error_log("=== DEBUG ADD ARTICLE ===");
-    error_log("POST data: " . print_r($_POST, true));
-    
     $title = $_POST['title'] ?? '';
     $content = $_POST['content'] ?? '';
     $short_description = $_POST['short_description'] ?? '';
-    
-    error_log("Title: " . $title);
-    error_log("Content length: " . strlen($content));
-    error_log("Short desc: " . $short_description);
+    $preview_image = $_POST['preview_image'] ?? '';
     
     if ($title && $content) {
-        error_log("Данные валидны, вызываем addArticle()");
-        $result = addArticle($title, $content, $short_description);
-        error_log("Результат addArticle: " . ($result ? 'true' : 'false'));
-        
-        if ($result) {
-            header('Location: index.php?message=added');
-            exit;
-        } else {
-            error_log("ОШИБКА: addArticle вернула false");
+        // Если превью не указано, пытаемся взять первое изображение из контента
+        if (empty($preview_image)) {
+            $preview_image = extractFirstImage($content);
         }
-    } else {
-        error_log("ОШИБКА: Не хватает title или content");
-    }
-}
-
-if ($_POST) {
-    $title = $_POST['title'] ?? '';
-    $content = $_POST['content'] ?? '';
-    $short_description = $_POST['short_description'] ?? '';
-    
-    if ($title && $content) {
-        if (updateArticle($article['id'], $title, $content, $short_description)) {
-            header('Location: index.php?message=updated');
+        
+        if (addArticle($title, $content, $short_description, $preview_image)) {
+            header('Location: index.php?message=added');
             exit;
         }
     }
@@ -60,23 +37,44 @@ include __DIR__ . '/../includes/header.php';
         <textarea class="form-control" id="short_description" name="short_description" rows="2"></textarea>
     </div>
     
+    <!-- Поле для превью-изображения -->
+    <div class="mb-3">
+        <label for="preview_image" class="form-label">Превью-изображение</label>
+        <div class="input-group">
+            <input type="text" class="form-control" id="preview_image" name="preview_image" 
+                   placeholder="URL изображения или выберите файл">
+            <button type="button" class="btn btn-outline-secondary" onclick="selectPreviewImage()">Выбрать файл</button>
+        </div>
+        <small class="text-muted">
+            Оставьте пустым, чтобы использовать первое изображение из статьи.
+            Размер рекомендуется: 400x250px.
+        </small>
+        
+        <!-- Превью изображения -->
+        <div id="preview-image-container" class="mt-2" style="display: none;">
+            <img id="preview-image" src="" class="img-thumbnail" style="max-height: 150px;">
+        </div>
+    </div>
+    
     <div class="mb-3">
         <label class="form-label">Содержание</label>
-        <div id="editor" style="height: 300px;"></div>
+        
+        <!-- Кнопка переключения режима -->
+        <div class="mb-2">
+            <button type="button" id="html-toggle-btn" class="html-toggle-btn">📄 HTML редактор</button>
+        </div>
+        
+        <!-- Контейнер для редакторов -->
+        <div id="editor-container">
+            <div id="editor" style="height: 400px;"></div>
+            <textarea id="html-editor" class="html-editor" style="display: none;"></textarea>
+        </div>
         <input type="hidden" name="content" id="content-input">
     </div>
     
     <div class="mb-3">
         <strong>Шорткод для аккордеона (в одну строку через |):</strong><br>
         <code>[[accordion]]Заголовок 1::Текст 1|Заголовок 2::Текст 2|Заголовок 3::Текст 3[[/accordion]]</code>
-        
-        <div class="mt-2">
-            <small class="text-muted">
-                <strong>Пример использования:</strong><br>
-                В редакторе пишите аккордеон в одну строку, разделяя элементы через |<br>
-                Каждый элемент: <code>Заголовок::Текст</code>
-            </small>
-        </div>
     </div>
     
     <button type="submit" class="btn btn-primary">Сохранить</button>
@@ -86,31 +84,140 @@ include __DIR__ . '/../includes/header.php';
 <!-- Подключаем Quill JS -->
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <script>
-// Инициализация Quill редактора
-var quill = new Quill('#editor', {
-    theme: 'snow',
-    modules: {
-        toolbar: [
-            [{ 'font': [] }, { 'size': [] }],
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'align': [] }],
-            ['blockquote', 'code-block'],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-            [{ 'indent': '-1'}, { 'indent': '+1' }],
-            ['link', 'image', 'video'],
-            ['clean']
-        ]
-    }
-});
+// Глобальные переменные
+let quill;
+let isHtmlMode = false;
+
+// Инициализация Quill
+function initQuill() {
+    quill = new Quill('#editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline'],
+                [{ 'align': [] }],
+                ['link', 'image'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['clean']
+            ]
+        }
+    });
+    
+    // Обработчик изменений в Quill
+    quill.on('text-change', function() {
+        if (!isHtmlMode) {
+            updateHiddenField();
+        }
+    });
+}
 
 // Обработчик загрузки изображений
-quill.getModule('toolbar').addHandler('image', function() {
-    selectLocalImage();
-});
+function setupImageHandler() {
+    quill.getModule('toolbar').addHandler('image', function() {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        
+        input.onchange = function() {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const range = quill.getSelection();
+            const loadingText = '🔄 Загрузка...';
+            quill.insertText(range.index, loadingText);
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            fetch('upload.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                quill.deleteText(range.index, loadingText.length);
+                
+                if (result.success) {
+                    quill.insertEmbed(range.index, 'image', result.url);
+                    quill.setSelection(range.index + 1, 0);
+                } else {
+                    alert('Ошибка: ' + result.error);
+                }
+            })
+            .catch(error => {
+                quill.deleteText(range.index, loadingText.length);
+                alert('Ошибка загрузки: ' + error.message);
+            });
+        };
+    });
+}
 
-function selectLocalImage() {
+// Переключение между режимами
+function setupHtmlToggle() {
+    const toggleBtn = document.getElementById('html-toggle-btn');
+    const visualEditor = document.getElementById('editor');
+    const htmlEditor = document.getElementById('html-editor');
+    
+    toggleBtn.addEventListener('click', function() {
+        if (isHtmlMode) {
+            // Переключаемся в визуальный режим
+            visualEditor.style.display = 'block';
+            htmlEditor.style.display = 'none';
+            
+            // Обновляем Quill содержимым из HTML редактора
+            quill.root.innerHTML = htmlEditor.value;
+            
+            toggleBtn.innerHTML = '📄 HTML редактор';
+            toggleBtn.classList.remove('active');
+            isHtmlMode = false;
+        } else {
+            // Переключаемся в HTML режим
+            visualEditor.style.display = 'none';
+            htmlEditor.style.display = 'block';
+            
+            // Обновляем HTML редактор содержимым из Quill
+            htmlEditor.value = quill.root.innerHTML;
+            
+            toggleBtn.innerHTML = '📝 Визуальный редактор';
+            toggleBtn.classList.add('active');
+            isHtmlMode = true;
+        }
+        
+        updateHiddenField();
+    });
+}
+
+// Обновление скрытого поля формы
+function updateHiddenField() {
+    const contentInput = document.getElementById('content-input');
+    if (isHtmlMode) {
+        contentInput.value = document.getElementById('html-editor').value;
+    } else {
+        contentInput.value = quill.root.innerHTML;
+    }
+}
+
+// Обработчик отправки формы
+function setupFormHandler() {
+    document.getElementById('article-form').addEventListener('submit', function(e) {
+        updateHiddenField();
+        
+        // Дополнительная валидация если нужно
+        const content = document.getElementById('content-input').value;
+        if (!content.trim()) {
+            e.preventDefault();
+            alert('Содержание статьи не может быть пустым!');
+            return false;
+        }
+        
+        return true;
+    });
+}
+
+// Функция для выбора превью-изображения
+function selectPreviewImage() {
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'image/*');
@@ -120,11 +227,6 @@ function selectLocalImage() {
         const file = input.files[0];
         if (!file) return;
         
-        // Показываем индикатор загрузки
-        const range = quill.getSelection();
-        const loadingText = '🔄 Загрузка...';
-        quill.insertText(range.index, loadingText);
-        
         const formData = new FormData();
         formData.append('image', file);
         
@@ -132,39 +234,82 @@ function selectLocalImage() {
             method: 'POST',
             body: formData
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка сети: ' + response.status);
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(result => {
-            // Удаляем индикатор загрузки
-            quill.deleteText(range.index, loadingText.length);
-            
             if (result.success) {
-                // Вставляем изображение
-                quill.insertEmbed(range.index, 'image', result.url);
-                // Перемещаем курсор после изображения
-                quill.setSelection(range.index + 1, 0);
+                document.getElementById('preview_image').value = result.url;
+                updatePreviewImage(result.url);
             } else {
-                alert('Ошибка: ' + result.error);
+                alert('Ошибка загрузки: ' + result.error);
             }
         })
         .catch(error => {
-            // Удаляем индикатор загрузки
-            quill.deleteText(range.index, loadingText.length);
-            alert('Ошибка загрузки: ' + error.message);
+            alert('Ошибка сети: ' + error.message);
         });
     };
 }
 
-// Сохранение содержимого перед отправкой формы
-document.getElementById('article-form').onsubmit = function() {
+// Функция обновления превью изображения
+function updatePreviewImage(url) {
+    const container = document.getElementById('preview-image-container');
+    const img = document.getElementById('preview-image');
+    
+    if (url) {
+        img.src = url;
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+// Автоматическое обновление превью при изменении URL
+document.getElementById('preview_image').addEventListener('input', function() {
+    updatePreviewImage(this.value);
+});
+
+// Автоматическое извлечение первого изображения из контента при изменении
+function setupContentChangeHandler() {
     const contentInput = document.getElementById('content-input');
-    contentInput.value = quill.root.innerHTML;
-    return true;
-};
+    const previewImageInput = document.getElementById('preview_image');
+    
+    // Следим за изменениями в контенте
+    const observer = new MutationObserver(function(mutations) {
+        if (!previewImageInput.value) {
+            // Извлекаем первое изображение из контента
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(contentInput.value, 'text/html');
+            const firstImg = doc.querySelector('img');
+            if (firstImg && firstImg.src) {
+                previewImageInput.value = firstImg.src;
+                updatePreviewImage(firstImg.src);
+            }
+        }
+    });
+    
+    // Начинаем наблюдение когда контент загружен
+    setTimeout(() => {
+        const editorElement = document.querySelector('.ql-editor');
+        if (editorElement) {
+            observer.observe(editorElement, { 
+                childList: true, 
+                subtree: true, 
+                characterData: true 
+            });
+        }
+    }, 1000);
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    initQuill();
+    setupImageHandler();
+    setupHtmlToggle();
+    setupFormHandler();
+    setupContentChangeHandler();
+    
+    // Обработчик изменений в HTML редакторе
+    document.getElementById('html-editor').addEventListener('input', updateHiddenField);
+});
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -53,6 +53,14 @@ include '../includes/header.php';
             <?php foreach ($articles as $article): ?>
             <tr>
                 <td><?php echo $article['id']; ?></td>
+                <td>
+                    <?php if (!empty($article['preview_image'])): ?>
+                    <img src="<?php echo htmlspecialchars($article['preview_image']); ?>" 
+                         style="height: 100px; width: 100px; object-fit: cover; border-radius: 3px; margin: 0 auto;"
+                         alt="Превью"
+                         onerror="this.style.display='none'">
+                    <?php endif; ?>
+                </td>
                 <td><?php echo htmlspecialchars($article['title']); ?></td>
                 <td><?php echo date('d.m.Y H:i', strtotime($article['created_at'])); ?></td>
                 <td>

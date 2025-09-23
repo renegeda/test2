@@ -14,36 +14,36 @@
             font-size: 16px;
         }
         
-        /* Стили для выравнивания Quill */
-        .ql-editor .ql-align-center {
-            text-align: center;
+        /* Стили для кнопки переключения HTML */
+        .html-toggle-btn {
+            margin-right: 10px;
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 3px;
+            cursor: pointer;
         }
-        .ql-editor .ql-align-right {
-            text-align: right;
+        .html-toggle-btn.active {
+            background: #007bff;
+            color: white;
         }
-        .ql-editor .ql-align-justify {
-            text-align: justify;
+        
+        /* Стили для HTML редактора */
+        .html-editor {
+            width: 100%;
+            height: 400px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
         }
         
         .article-content img { 
             max-width: 100%; 
             height: auto; 
         }
-        .article-content iframe {
-            max-width: 100%;
-        }
-        
-        /* Стили для выравнивания в статьях */
-        .article-content .ql-align-center {
-            text-align: center;
-        }
-        .article-content .ql-align-right {
-            text-align: right;
-        }
-        .article-content .ql-align-justify {
-            text-align: justify;
-        }
-        
         #editor {
             border: 1px solid #ccc;
             border-radius: 4px;
