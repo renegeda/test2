@@ -25,11 +25,26 @@ function getArticleContent($article) {
 }
 
 function addArticle($title, $content, $short_description = '') {
+    error_log("=== addArticle CALLED ===");
+    error_log("Title: " . $title);
+    error_log("Content length: " . strlen($content));
+    
     $db = new Database();
     $pdo = $db->getConnection();
     
-    $stmt = $pdo->prepare("INSERT INTO articles (title, content, short_description) VALUES (?, ?, ?)");
-    return $stmt->execute([$title, $content, $short_description]);
+    try {
+        $stmt = $pdo->prepare("INSERT INTO articles (title, content, short_description) VALUES (?, ?, ?)");
+        $result = $stmt->execute([$title, $content, $short_description]);
+        
+        error_log("SQL execute result: " . ($result ? 'true' : 'false'));
+        error_log("Last insert ID: " . $pdo->lastInsertId());
+        error_log("Row count: " . $stmt->rowCount());
+        
+        return $result;
+    } catch (Exception $e) {
+        error_log("ОШИБКА БД в addArticle: " . $e->getMessage());
+        return false;
+    }
 }
 
 function updateArticle($id, $title, $content, $short_description = '') {
@@ -49,23 +64,35 @@ function deleteArticle($id) {
 }
 
 // Функция обработки аккордеонов в контенте
+// Функция обработки аккордеонов в контенте (оптимизированная для Quill)
 function processAccordions($content) {
+    // Убираем параграфы вокруг шорткодов аккордеона
+    $content = preg_replace('/<p>\[\[accordion\]\]<\/p>/', '[[accordion]]', $content);
+    $content = preg_replace('/<p>\[\[\/accordion\]\]<\/p>/', '[[/accordion]]', $content);
+    
     $pattern = '/\[\[accordion\]\](.*?)\[\[\/accordion\]\]/s';
     
     return preg_replace_callback($pattern, function($matches) {
         $items = [];
-        $lines = explode("\n", trim($matches[1]));
+        $accordion_content = strip_tags($matches[1]); // Убираем HTML теги
+        $accordion_content = trim($accordion_content);
         
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) continue;
+        // Разделяем элементы аккордеона по |
+        $elements = explode('|', $accordion_content);
+        
+        foreach ($elements as $element) {
+            $element = trim($element);
+            if (empty($element)) continue;
             
-            $parts = explode('::', $line, 2);
-            if (count($parts) === 2) {
-                $items[] = [
-                    'title' => trim($parts[0]),
-                    'content' => trim($parts[1])
-                ];
+            // Разделяем заголовок и контент по ::
+            if (strpos($element, '::') !== false) {
+                $parts = explode('::', $element, 2);
+                if (count($parts) === 2) {
+                    $items[] = [
+                        'title' => trim($parts[0]),
+                        'content' => trim($parts[1])
+                    ];
+                }
             }
         }
         
@@ -74,28 +101,32 @@ function processAccordions($content) {
 }
 
 function generateAccordionHTML($items) {
-    if (empty($items)) return '';
+    if (empty($items)) {
+        return '<div class="alert alert-warning">Аккордеон не содержит элементов</div>';
+    }
     
     $accordion_id = 'accordion-' . uniqid();
-    $html = '<div class="accordion mt-3 mb-3" id="'.$accordion_id.'">';
+    $html = '<div class="accordion mt-4 mb-4" id="' . $accordion_id . '">';
     
     foreach ($items as $index => $item) {
         $item_id = 'collapse-' . $accordion_id . '-' . $index;
-        $show_class = $index === 0 ? 'show' : '';
-        $collapsed_class = $index === 0 ? '' : 'collapsed';
+        $show_class = ($index === 0) ? 'show' : '';
+        $collapsed_class = ($index === 0) ? '' : 'collapsed';
         
         $html .= '
         <div class="accordion-item">
             <h2 class="accordion-header">
-                <button class="accordion-button '.$collapsed_class.'" type="button" 
-                        data-bs-toggle="collapse" data-bs-target="#'.$item_id.'">
-                    '.htmlspecialchars($item['title']).'
+                <button class="accordion-button ' . $collapsed_class . '" type="button" 
+                        data-bs-toggle="collapse" data-bs-target="#' . $item_id . '" 
+                        aria-expanded="' . ($index === 0 ? 'true' : 'false') . '" 
+                        aria-controls="' . $item_id . '">
+                    ' . htmlspecialchars($item['title']) . '
                 </button>
             </h2>
-            <div id="'.$item_id.'" class="accordion-collapse collapse '.$show_class.'" 
-                 data-bs-parent="#'.$accordion_id.'">
+            <div id="' . $item_id . '" class="accordion-collapse collapse ' . $show_class . '" 
+                 data-bs-parent="#' . $accordion_id . '">
                 <div class="accordion-body">
-                    '.nl2br(htmlspecialchars($item['content'])).'
+                    ' . nl2br(htmlspecialchars($item['content'])) . '
                 </div>
             </div>
         </div>';

@@ -1,5 +1,34 @@
 <?php
-require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/functions.php';
+
+// ОТЛАДКА: логируем данные формы
+if ($_POST) {
+    error_log("=== DEBUG ADD ARTICLE ===");
+    error_log("POST data: " . print_r($_POST, true));
+    
+    $title = $_POST['title'] ?? '';
+    $content = $_POST['content'] ?? '';
+    $short_description = $_POST['short_description'] ?? '';
+    
+    error_log("Title: " . $title);
+    error_log("Content length: " . strlen($content));
+    error_log("Short desc: " . $short_description);
+    
+    if ($title && $content) {
+        error_log("Данные валидны, вызываем addArticle()");
+        $result = addArticle($title, $content, $short_description);
+        error_log("Результат addArticle: " . ($result ? 'true' : 'false'));
+        
+        if ($result) {
+            header('Location: index.php?message=added');
+            exit;
+        } else {
+            error_log("ОШИБКА: addArticle вернула false");
+        }
+    } else {
+        error_log("ОШИБКА: Не хватает title или content");
+    }
+}
 
 if ($_POST) {
     $title = $_POST['title'] ?? '';
@@ -7,16 +36,15 @@ if ($_POST) {
     $short_description = $_POST['short_description'] ?? '';
     
     if ($title && $content) {
-        if (addArticle($title, $content, $short_description)) {
-            header('Location: index.php');
+        if (updateArticle($article['id'], $title, $content, $short_description)) {
+            header('Location: index.php?message=updated');
             exit;
         }
     }
 }
 
 $title = 'Добавить статью';
-$quill_script = true; // Добавляем эту переменную для header.php
-include '../includes/header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <h1>Добавить новую статью</h1>
@@ -34,87 +62,109 @@ include '../includes/header.php';
     
     <div class="mb-3">
         <label class="form-label">Содержание</label>
-        <div id="editor"></div>
-        <input type="hidden" name="content">
+        <div id="editor" style="height: 300px;"></div>
+        <input type="hidden" name="content" id="content-input">
     </div>
     
     <div class="mb-3">
-        <strong>Шорткод для аккордеона:</strong><br>
-        <code>[[accordion]]<br>Заголовок 1::Текст 1<br>Заголовок 2::Текст 2<br>[[/accordion]]</code>
+        <strong>Шорткод для аккордеона (в одну строку через |):</strong><br>
+        <code>[[accordion]]Заголовок 1::Текст 1|Заголовок 2::Текст 2|Заголовок 3::Текст 3[[/accordion]]</code>
+        
+        <div class="mt-2">
+            <small class="text-muted">
+                <strong>Пример использования:</strong><br>
+                В редакторе пишите аккордеон в одну строку, разделяя элементы через |<br>
+                Каждый элемент: <code>Заголовок::Текст</code>
+            </small>
+        </div>
     </div>
     
     <button type="submit" class="btn btn-primary">Сохранить</button>
     <a href="index.php" class="btn btn-secondary">Отмена</a>
 </form>
 
+<!-- Подключаем Quill JS -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <script>
 // Инициализация Quill редактора
 var quill = new Quill('#editor', {
     theme: 'snow',
     modules: {
-        toolbar: {
-            container: [
-                [{ 'header': [1, 2, 3, false] }],
-                ['bold', 'italic', 'underline'],
-                ['link', 'image', 'blockquote', 'code-block'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                ['clean']
-            ],
-            handlers: {
-                'image': imageHandler
-            }
-        }
+        toolbar: [
+            [{ 'font': [] }, { 'size': [] }],
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'align': [] }],
+            ['blockquote', 'code-block'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            ['link', 'image', 'video'],
+            ['clean']
+        ]
     }
 });
 
 // Обработчик загрузки изображений
-function imageHandler() {
-    var input = document.createElement('input');
+quill.getModule('toolbar').addHandler('image', function() {
+    selectLocalImage();
+});
+
+function selectLocalImage() {
+    const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'image/*');
     input.click();
     
     input.onchange = function() {
-        var file = input.files[0];
+        const file = input.files[0];
         if (!file) return;
         
-        var formData = new FormData();
-        formData.append('image', file);
-        
-        // Показываем сообщение о загрузке
-        var range = quill.getSelection();
-        var loadingText = '[Загрузка изображения...]';
+        // Показываем индикатор загрузки
+        const range = quill.getSelection();
+        const loadingText = '🔄 Загрузка...';
         quill.insertText(range.index, loadingText);
+        
+        const formData = new FormData();
+        formData.append('image', file);
         
         fetch('upload.php', {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка сети: ' + response.status);
+            }
+            return response.json();
+        })
         .then(result => {
-            // Удаляем текст загрузки
+            // Удаляем индикатор загрузки
             quill.deleteText(range.index, loadingText.length);
             
             if (result.success) {
                 // Вставляем изображение
                 quill.insertEmbed(range.index, 'image', result.url);
+                // Перемещаем курсор после изображения
+                quill.setSelection(range.index + 1, 0);
             } else {
-                alert('Ошибка загрузки: ' + (result.error || 'Неизвестная ошибка'));
+                alert('Ошибка: ' + result.error);
             }
         })
         .catch(error => {
+            // Удаляем индикатор загрузки
             quill.deleteText(range.index, loadingText.length);
-            alert('Ошибка сети: ' + error.message);
+            alert('Ошибка загрузки: ' + error.message);
         });
     };
 }
 
 // Сохранение содержимого перед отправкой формы
 document.getElementById('article-form').onsubmit = function() {
-    var contentInput = document.querySelector('input[name=content]');
+    const contentInput = document.getElementById('content-input');
     contentInput.value = quill.root.innerHTML;
     return true;
 };
 </script>
 
-<?php include '../includes/footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

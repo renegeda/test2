@@ -1,8 +1,25 @@
 <?php
 require_once '../includes/functions.php';
 
+// Уведомления об успешных операциях
+if (isset($_GET['message'])) {
+    $messages = [
+        'added' => 'Статья успешно добавлена!',
+        'updated' => 'Статья успешно обновлена!', 
+        'deleted' => 'Статья успешно удалена!'
+    ];
+    
+    if (isset($messages[$_GET['message']])) {
+        $alert_message = $messages[$_GET['message']];
+    }
+}
+
+// Обработка удаления статьи
 if ($_POST && isset($_POST['delete_id'])) {
-    deleteArticle($_POST['delete_id']);
+    if (deleteArticle($_POST['delete_id'])) {
+        header('Location: index.php?message=deleted');
+        exit;
+    }
 }
 
 $articles = getAllArticles();
@@ -14,6 +31,12 @@ include '../includes/header.php';
 ?>
 
 <h1>Управление статьями</h1>
+<?php if (isset($alert_message)): ?>
+<div class="alert alert-success alert-dismissible fade show">
+    <?php echo $alert_message; ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
 <a href="add.php" class="btn btn-success mb-3">+ Добавить статью</a>
 
 <div class="table-responsive">
