@@ -62,6 +62,20 @@ function deleteArticle($id) {
     return $stmt->execute([$id]);
 }
 
+function deleteMultipleArticles($ids) {
+    $db = new Database();
+    $pdo = $db->getConnection();
+    
+    try {
+        $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+        $stmt = $pdo->prepare("DELETE FROM articles WHERE id IN ($placeholders)");
+        return $stmt->execute($ids);
+    } catch (Exception $e) {
+        error_log("ОШИБКА массового удаления: " . $e->getMessage());
+        return false;
+    }
+}
+
 // Функция обработки аккордеонов в контенте (оптимизированная для Quill)
 function processAccordions($content) {
     // Убираем параграфы вокруг шорткодов аккордеона
