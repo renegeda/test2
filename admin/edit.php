@@ -45,6 +45,22 @@ include __DIR__ . '/../includes/header.php';
     </div>
     
     <div class="mb-3">
+    <label for="category_id" class="form-label">Категория</label>
+    <select class="form-select" id="category_id" name="category_id">
+        <option value="">-- Без категории --</option>
+        <?php
+        $categories = getAllCategories();
+        foreach ($categories as $cat): 
+            $selected = ($cat['id'] == ($article['category_id'] ?? '')) ? 'selected' : '';
+        ?>
+            <option value="<?php echo $cat['id']; ?>" <?php echo $selected; ?>>
+                <?php echo htmlspecialchars($cat['name']); ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+</div>
+    
+    <div class="mb-3">
         <label for="short_description" class="form-label">Краткое описание</label>
         <textarea class="form-control" id="short_description" name="short_description" rows="2"><?php echo htmlspecialchars($article['short_description']); ?></textarea>
     </div>

@@ -12,7 +12,6 @@ if (isset($_GET['message'])) {
     if (isset($messages[$_GET['message']])) {
         $alert_message = $messages[$_GET['message']];
         
-        // Очищаем URL от параметра message после показа уведомления
         echo '<script>
             if (window.history.replaceState) {
                 const url = new URL(window.location);
@@ -47,7 +46,7 @@ if ($_POST && isset($_POST['edit_selected'])) {
     }
 }
 
-$articles = getAllArticles();
+$articles = getAllArticlesWithCategories();
 ?>
 
 <?php 
@@ -64,10 +63,8 @@ include '../includes/header.php';
 </div>
 <?php endif; ?>
 
-<!-- Остальной код без изменений -->
 <form method="POST" id="articles-form">
-    <!-- Панель управления -->
-    <div class="d-flex justify-content-between align-items-center my-5">
+    <div class="d-flex justify-content-between align-items-center my-3">
         <div>
             <a href="add.php" class="btn btn-success">+ Добавить статью</a>
         </div>
@@ -75,7 +72,7 @@ include '../includes/header.php';
             <button type="button" class="btn btn-outline-secondary" id="deselect-all">
                 Снять выделение
             </button>
-            <button type="submit" name="edit_selected" class="btn btn-primary mx-2" id="edit-selected" disabled>
+            <button type="submit" name="edit_selected" class="btn btn-primary mx-1" id="edit-selected" disabled>
                 ✏️ Редактировать выбранную
             </button>
             <button type="submit" name="delete_selected" class="btn btn-danger" id="delete-selected" disabled>
@@ -85,57 +82,73 @@ include '../includes/header.php';
     </div>
 
     <div class="table-responsive">
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th width="40">Выбор</th>
-                    <th>ID</th>
-                    <th>Превью</th>
-                    <th>Заголовок</th>
-                    <th>Дата</th>
-                    <th>Краткое описание</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($articles)): ?>
-                    <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
-                            Статьи пока не добавлены
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($articles as $article): ?>
-                    <tr>
-                        <td>
-                            <input type="radio" name="selected_article" value="<?php echo $article['id']; ?>" 
-                                   class="article-radio">
-                        </td>
-                        <td><?php echo $article['id']; ?></td>
-                        <td>
-                            <?php if (!empty($article['preview_image'])): ?>
-                            <img src="<?php echo htmlspecialchars($article['preview_image']); ?>" 
-                                 style="height: 50px; width: 50px; object-fit: cover; border-radius: 3px;"
-                                 alt="Превью"
-                                 onerror="this.style.display='none'">
-                            <?php else: ?>
-                            <span class="text-muted">Нет</span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <strong><?php echo htmlspecialchars($article['title']); ?></strong>
-                        </td>
-                        <td><?php echo date('d.m.Y H:i', strtotime($article['created_at'])); ?></td>
-                        <td>
-                            <?php 
-                            $short_desc = $article['short_description'] ?? '';
-                            echo htmlspecialchars(mb_strlen($short_desc) > 100 ? mb_substr($short_desc, 0, 100) . '...' : $short_desc);
-                            ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th width="40">Выбор</th>
+            <th>ID</th>
+            <th>Превью</th>
+            <th>Заголовок</th>
+            <th>Категория</th>
+            <th>Просмотры</th>
+            <th>Дата</th>
+            <th>Краткое описание</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php if (empty($articles)): ?>
+            <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                    Статьи пока не добавлены
+                </td>
+            </tr>
+        <?php else: ?>
+            <?php foreach ($articles as $article): ?>
+            <tr>
+                <td>
+                    <input type="radio" name="selected_article" value="<?php echo $article['id']; ?>" 
+                           class="article-radio">
+                </td>
+                <td><?php echo $article['id']; ?></td>
+                <td>
+                    <?php if (!empty($article['preview_image'])): ?>
+                    <img src="<?php echo htmlspecialchars($article['preview_image']); ?>" 
+                         style="height: 50px; width: 50px; object-fit: cover; border-radius: 3px;"
+                         alt="Превью"
+                         onerror="this.style.display='none'">
+                    <?php else: ?>
+                    <span class="text-muted">Нет</span>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <strong><?php echo htmlspecialchars($article['title']); ?></strong>
+                </td>
+                <td>
+                    <?php if ($article['category_name']): ?>
+                        <span class="badge bg-info">
+                            <?php echo htmlspecialchars($article['category_name']); ?>
+                        </span>
+                    <?php else: ?>
+                        <span class="text-muted">Без категории</span>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <span class="px-4 py-2 badge bg-<?php echo ($article['views'] ?? 0) > 0 ? 'primary' : 'secondary'; ?>">
+                        <?php echo $article['views'] ?? 0; ?>
+                    </span>
+                </td>
+                <td><?php echo date('d.m.Y H:i', strtotime($article['created_at'])); ?></td>
+                <td>
+                    <?php 
+                    $short_desc = $article['short_description'] ?? '';
+                    echo htmlspecialchars(mb_strlen($short_desc) > 100 ? mb_substr($short_desc, 0, 100) . '...' : $short_desc);
+                    ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </tbody>
+</table>
     </div>
 </form>
 

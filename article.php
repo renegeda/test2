@@ -11,6 +11,20 @@ if (!$article) {
     header('Location: index.php');
     exit;
 }
+
+// Увеличиваем счетчик просмотров
+incrementArticleViews($article['id']);
+
+if (!isset($_GET['id'])) {
+    header('Location: index.php');
+    exit;
+}
+
+$article = getArticleById($_GET['id']);
+if (!$article) {
+    header('Location: index.php');
+    exit;
+}
 ?>
 
 <?php 
