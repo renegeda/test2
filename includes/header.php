@@ -56,7 +56,8 @@
             <a class="navbar-brand" href="index.php">Новостной сайт</a>
             <div class="navbar-nav">
                 <a class="nav-link" href="../index.php">Главная</a>
-                <a class="nav-link" href="index.php">Админка</a>
+                <a class="nav-link" href="index.php">Статьи</a>
+                <a class="nav-link" href="categories.php">Категории</a>
             </div>
         </div>
     </nav>

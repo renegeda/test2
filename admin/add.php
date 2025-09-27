@@ -6,14 +6,15 @@ if ($_POST) {
     $content = $_POST['content'] ?? '';
     $short_description = $_POST['short_description'] ?? '';
     $preview_image = $_POST['preview_image'] ?? '';
+    $category_id = $_POST['category_id'] ?? null; // ДОБАВИТЬ ЭТУ СТРОКУ
     
     if ($title && $content) {
-        // Если превью не указано, пытаемся взять первое изображение из контента
         if (empty($preview_image)) {
             $preview_image = extractFirstImage($content);
         }
         
-        if (addArticle($title, $content, $short_description, $preview_image)) {
+        // ОБНОВИТЬ ВЫЗОВ ФУНКЦИИ
+        if (addArticle($title, $content, $short_description, $preview_image, $category_id)) {
             header('Location: index.php?message=added');
             exit;
         }
@@ -33,20 +34,19 @@ include __DIR__ . '/../includes/header.php';
     </div>
     
     <div class="mb-3">
-    <label for="category_id" class="form-label">Категория</label>
-    <select class="form-select" id="category_id" name="category_id">
-        <option value="">-- Без категории --</option>
-        <?php
-        $categories = getAllCategories();
-        foreach ($categories as $cat): 
-            $selected = ($cat['id'] == ($article['category_id'] ?? '')) ? 'selected' : '';
-        ?>
-            <option value="<?php echo $cat['id']; ?>" <?php echo $selected; ?>>
-                <?php echo htmlspecialchars($cat['name']); ?>
-            </option>
-        <?php endforeach; ?>
-    </select>
-</div>
+        <label for="category_id" class="form-label">Категория</label>
+        <select class="form-select" id="category_id" name="category_id">
+            <option value="">-- Без категории --</option>
+            <?php
+            $categories = getAllCategories();
+            foreach ($categories as $cat): 
+            ?>
+                <option value="<?php echo $cat['id']; ?>">
+                    <?php echo htmlspecialchars($cat['name']); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </div>
     
     <div class="mb-3">
         <label for="short_description" class="form-label">Краткое описание</label>

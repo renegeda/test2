@@ -13,13 +13,10 @@ $articles = getAllArticles();
             <!-- Превью изображение -->
             <?php if (!empty($article['preview_image'])): ?>
             <img src="<?php echo htmlspecialchars($article['preview_image']); ?>" 
-                 class="card-img-top" 
-                 style="height: 200px; object-fit: cover;"
-                 alt="<?php echo htmlspecialchars($article['title']); ?>"
+                 class="card-img-top" alt="<?php echo htmlspecialchars($article['title']); ?>"
                  onerror="this.style.display='none'">
             <?php else: ?>
-            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" 
-                 style="height: 200px;">
+            <div class="card-img-top bg-light d-flex align-items-center justify-content-center">
                 <span class="text-muted">Нет изображения</span>
             </div>
             <?php endif; ?>

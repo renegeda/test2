@@ -188,6 +188,8 @@ function getArticleViews($article_id) {
 }
 
 function addArticle($title, $content, $short_description = '', $preview_image = '', $category_id = null) {
+    error_log("=== addArticle CALLED ===");
+    
     $db = new Database();
     $pdo = $db->getConnection();
     

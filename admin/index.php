@@ -73,10 +73,10 @@ include '../includes/header.php';
                 Снять выделение
             </button>
             <button type="submit" name="edit_selected" class="btn btn-primary mx-1" id="edit-selected" disabled>
-                ✏️ Редактировать выбранную
+                Редактировать
             </button>
             <button type="submit" name="delete_selected" class="btn btn-danger" id="delete-selected" disabled>
-                🗑️ Удалить выбранную
+                Удалить
             </button>
         </div>
     </div>
